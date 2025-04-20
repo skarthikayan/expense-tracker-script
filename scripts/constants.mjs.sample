@@ -1,0 +1,76 @@
+export const keywords = {
+  transfer: ["transfer", "payment", "transaction", "remittance"],
+  food: ["restaurant", "dining", "cafe", "fast food", "groceries", "snacks"],
+  shopping: ["amazon", "ebay", "mall", "retail", "store", "boutique"],
+  travel: ["flight", "hotel", "taxi", "uber", "train", "bus", "airbnb"],
+  entertainment: [
+    "netflix",
+    "spotify",
+    "cinema",
+    "concert",
+    "theater",
+    "gaming",
+  ],
+  utilities: ["electricity", "water", "gas", "internet", "phone", "cable"],
+  investment: ["stocks", "bonds", "mutual funds", "crypto", "real estate"],
+  salary: ["payroll", "wages", "income", "salary deposit"],
+  rent: ["rent", "lease", "landlord"],
+  medical: ["hospital", "clinic", "pharmacy", "doctor", "medicine"],
+  interest: ["interest", "loan interest", "savings interest"],
+  dividend: ["dividend", "stock dividend", "investment return"],
+  grocery: ["supermarket", "grocery store", "produce", "market"],
+  creditcard: ["credit card payment", "card bill", "credit card fee"],
+  insurance: ["health insurance", "car insurance", "life insurance", "premium"],
+};
+
+export const filePaths = {
+  statements: "../statements",
+  output: "../output",
+  outputCsv: "../output/transactions.csv",
+};
+
+export const headersMapping = {
+  bank1: {
+    date: "Date",
+    description: "Description",
+    debit: "Debit",
+    credit: "Credit",
+    tableStartsAt: "Date",
+    delimiter: "\t",
+  },
+  bank2: {
+    date: "Date",
+    description: "Description",
+    debit: "Debit",
+    credit: "Credit",
+    tableStartsAt: "Date",
+    delimiter: ",",
+  },
+};
+
+export const accounts = [
+  {
+    accountNumber: "123456789",
+    bank: "bank1",
+    owner: "owner1",
+    headers: headersMapping.bank1,
+  },
+  {
+    accountNumber: "987654321",
+    bank: "bank2",
+    owner: "owner1",
+    headers: headersMapping.bank2,
+  },
+  {
+    accountNumber: "112233445",
+    bank: "bank1",
+    owner: "owner2",
+    headers: headersMapping.bank1,
+  },
+  {
+    accountNumber: "554433221",
+    bank: "bank2",
+    owner: "owner2",
+    headers: headersMapping.bank2,
+  },
+];
