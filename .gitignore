@@ -2,3 +2,5 @@ node_modules
 constants.mjs
 statements/*
 output/*
+!output/.gitkeep
+!statements/.gitkeep
