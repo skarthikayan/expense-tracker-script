@@ -34,8 +34,14 @@ function formatDate(dateString) {
   if (isNaN(date.getTime())) {
     throw new Error(`Invalid date format: ${dateString}`);
   }
-
-  return date.toLocaleDateString(); // Return "yyyy-mm-dd"
+  date = date.toLocaleDateString();
+  date = date
+    .split("/")
+    .map((part) => part.padStart(2, "0"))
+    .join("-"); // Convert to "mm-dd-yyyy" format
+  const [month, day, year] = date.split("-");
+  date = `${year}-${month}-${day}`; // Convert to "yyyy-mm-dd"
+  return date; // Return "yyyy-mm-dd"
 }
 
 // Get all CSV/XLS files from a folder
@@ -60,9 +66,38 @@ function parseCsvContent(content, headers) {
     delimiter: headers.delimiter,
   });
 }
+// find the type of transaction type: income, expense, transfer
+function tagTransactionType(records) {
+  // if the amount is positive, it is income, else expense, if category is transfer, it is transfer
+  records.forEach((record) => {
+    if (record.Category === "transfer") {
+      record.Type = "transfer";
+    } else if (Number(record.Amount) < 0) {
+      record.Type = "income";
+    } else {
+      record.Type = "expense";
+    }
+  });
 
+  return records;
+}
+
+function cleanupDescription(description) {
+  // Split the description by '/', remove extra spaces, filter out pure numbers and empty strings, then join back with '-'
+  return description
+    .split("/")
+    .map((part) => part.trim())
+    .filter((part) => part !== "" && isNaN(part))
+    .join("-");
+}
+function currencyStringToNumber(currencyString) {
+  // Remove any non-numeric characters (except for decimal point)
+  const cleanedString = currencyString.replace(/[^0-9.-]+/g, "");
+  // Convert to number
+  return parseFloat(cleanedString);
+}
 // Categorize a transaction based on keywords
-function categorizeTransaction(description, keywords, credit) {
+function categorizeTransaction(description, isCredit) {
   for (const [category, keywordsArray] of Object.entries(keywords)) {
     if (
       keywordsArray.some((keyword) =>
@@ -70,24 +105,25 @@ function categorizeTransaction(description, keywords, credit) {
       )
     ) {
       if (
-        !["salary", "dividend", "intreset", "transfer", "investment"].includes(
+        !["salary", "dividend", "interest", "transfer", "investment"].includes(
           category
         ) &&
-        Number(credit) > 0
+        isCredit
       ) {
         return "refund";
       }
       return category;
     }
   }
-  if (Number(credit) > 0) {
+  // if no match is found, check if the amount is positive and mark it as refund
+  if (isCredit) {
     return "refund";
   }
 
-  if (description.toLowerCase().includes("upi/p2m")) {
+  if (description.toLowerCase().includes("p2m")) {
     return "others - Merchant Payment";
   }
-  if (description.toLowerCase().includes("upi/p2a")) {
+  if (description.toLowerCase().includes("p2a")) {
     return "others - Account Payment";
   }
 
@@ -95,23 +131,24 @@ function categorizeTransaction(description, keywords, credit) {
 }
 
 // Process a single CSV file
-async function processCsvFile(filePath, accountLabels, headers, keywords) {
+async function processCsvFile(filePath, bankName, accountOwner, headers) {
   const content = await fs.readFile(filePath, "utf-8");
   const records = parseCsvContent(content, headers);
 
   const processedRecords = records
     .filter((item) => isValidDate(item[headers.date])) // Skip invalid dates
     .map((item) => ({
-      file: accountLabels,
-      date: formatDate(item[headers.date]),
-      description: item[headers.description],
-      debit: item[headers.debit],
-      credit: item[headers.credit],
-      category: categorizeTransaction(
-        item[headers.description],
-        keywords,
-        item[headers.credit]
+      Date: formatDate(item[headers.date]),
+      Amount: item[headers.debit]
+        ? currencyStringToNumber(item[headers.debit])
+        : currencyStringToNumber(item[headers.credit]) * -1,
+      Category: categorizeTransaction(
+        cleanupDescription(item[headers.description]),
+        currencyStringToNumber(item[headers.credit]) > 0 // isCredit boolean
       ),
+      Bank: bankName,
+      Owner: accountOwner,
+      Description: cleanupDescription(item[headers.description]),
     }));
 
   return processedRecords;
@@ -131,11 +168,12 @@ async function processAllCsvFiles() {
     const filePath = path.join(folderPath, file);
     const content = await fs.readFile(filePath, "utf-8");
 
-    let headers, accountLabel;
+    let headers, bankName, accountOwner;
     for (let account of accounts) {
       if (content.includes(account.accountNumber)) {
         headers = account.headers;
-        accountLabel = `${account.bank}_${account.owner}`;
+        bankName = account.bank;
+        accountOwner = account.owner;
         break;
       }
     }
@@ -147,16 +185,16 @@ async function processAllCsvFiles() {
 
     const processedRecords = await processCsvFile(
       filePath,
-      accountLabel,
-      headers,
-      keywords
+      bankName,
+      accountOwner,
+      headers
     );
     allRecords = allRecords.concat(processedRecords);
   }
-
+  const taggedRecords = tagTransactionType(allRecords);
   // Sort records by date
-  const sortedRecords = allRecords.sort(
-    (a, b) => new Date(a.date) - new Date(b.date)
+  const sortedRecords = taggedRecords.sort(
+    (a, b) => new Date(a.Date) - new Date(b.Date)
   );
 
   // Write the combined records to a single output CSV file
@@ -165,6 +203,12 @@ async function processAllCsvFiles() {
   await fs.writeFile(outputCsvPath, csvContent, "utf-8");
 
   console.log(`Output written to ${outputCsvPath}`);
+
+  // Write the combined records to a single output json file
+  const outputJsonPath = path.join(outputFolderPath, filePaths.outputJson);
+  const jsonContent = JSON.stringify(sortedRecords, null, 2);
+  await fs.writeFile(outputJsonPath, jsonContent, "utf-8");
+  console.log(`Output written to ${outputJsonPath}`);
 }
 
 // Run the main function
